@@ -4,8 +4,11 @@
 #include <sched.h>
 #include <sys/mman.h>
 #include <string.h>
+#include <math.h>
+#include <limits.h>
+#include <signal.h>
 
-#define MY_PRIORITY (49) /* we use 49 as the PRREMPT_RT use 50
+#define MY_PRIORITY (95) /* we use 95 as the PRREMPT_RT use 50
                             as the priority of kernel tasklets
                             and interrupt handler by default */
 
@@ -18,6 +21,12 @@
 #define INTERVAL 1000000 /* 1ms*/
 #define BUSY_COUNT 10000
 
+/* globals */
+long long cnt = 0;
+long long deviation_max = 0;
+long long deviation_min = LLONG_MAX;
+double deviation_avg = 0;
+
 static void stack_prefault(void) 
 {
 
@@ -29,6 +38,7 @@ static void stack_prefault(void)
 
 static void actual_job(const struct timespec* time_act,
         const struct timespec* time_last);
+static void signal_handler(int sig);
 
 #if 0
 int main(int argc, char* argv[])
@@ -42,7 +52,6 @@ int main(void)
     struct sched_param param;
 
     /* Declare ourself as a real time task */
-
     param.sched_priority = MY_PRIORITY;
     if(sched_setscheduler(0, SCHED_FIFO, &param) == -1) 
     {
@@ -51,15 +60,21 @@ int main(void)
     }
 
     /* Lock memory */
-
     if(mlockall(MCL_CURRENT|MCL_FUTURE) == -1) 
     {
         perror("mlockall failed");
         exit(-2);
     }
 
-    /* Pre-fault our stack */
+    /* set signal handlers */
+    if (signal(SIGINT, signal_handler) == SIG_ERR
+            || signal(SIGTERM, signal_handler) == SIG_ERR)
+    {
+        fprintf(stderr, "Could not install signal handler for SIGINT.\n");
+        return 1;
+    }
 
+    /* Pre-fault our stack */
     stack_prefault();
 
     clock_gettime(CLOCK_MONOTONIC ,&t);
@@ -91,15 +106,51 @@ int main(void)
 static void actual_job(const struct timespec* time_act,
         const struct timespec* time_last)
 {
-    volatile int cnt = 0;
+    volatile int cnt_busy = 0;
+    long long deviation_cur = 0;
 
     if (time_last->tv_sec != 0 || time_last->tv_nsec != 0)
     {
-        fprintf(stdout, "Tick tick ...%f(us)\n",
-                ((((long long)time_act->tv_sec * NSEC_PER_SEC + time_act->tv_nsec) - ((long long)time_last->tv_sec * NSEC_PER_SEC + time_last->tv_nsec)) - (double)INTERVAL) / 1000);
+        deviation_cur = ((((long long)time_act->tv_sec * NSEC_PER_SEC + time_act->tv_nsec) - ((long long)time_last->tv_sec * NSEC_PER_SEC + time_last->tv_nsec)) - INTERVAL) / 1000;
+
+        if (llabs(deviation_cur) < llabs(deviation_min))
+        {
+            deviation_min = deviation_cur;
+        }
+
+        if (llabs(deviation_cur) > llabs(deviation_max))
+        {
+            deviation_max = deviation_cur;
+        }
+
     }
-    for (cnt = 0; cnt < BUSY_COUNT; cnt++)
+    for (cnt_busy = 0; cnt_busy < BUSY_COUNT; cnt_busy++)
     {
-        /* cannot be optimized because of cnt's volatile nature */
+        /* cannot be optimized because of cnt's volatility */
     }
+
+    if (cnt == 0)
+    {
+        deviation_avg = llabs(deviation_cur);
+    }
+    else
+    {
+        deviation_avg = ((double)cnt * deviation_avg) / (cnt + 1) + 
+            llabs(deviation_cur) / ((double)cnt + 1);
+    }
+
+    cnt++;
+}
+
+static void signal_handler(int sig)
+{
+    int ret = EXIT_SUCCESS;
+
+    fprintf(stdout, "Count: %lld Min: %lld Max: %lld Avg: %f\n",
+            cnt,
+            deviation_min,
+            deviation_max,
+            deviation_avg);
+
+    exit(ret);
 }
