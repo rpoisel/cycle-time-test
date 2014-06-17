@@ -36,8 +36,8 @@ static void stack_prefault(void)
     return;
 }
 
-static void actual_job(const struct timespec* time_act,
-        const struct timespec* time_last);
+static void actual_job(const struct timespec const* time_act,
+        const struct timespec const* time_last);
 static void signal_handler(int sig);
 
 #if 0
@@ -103,8 +103,8 @@ int main(void)
     }
 }
 
-static void actual_job(const struct timespec* time_act,
-        const struct timespec* time_last)
+static void actual_job(const struct timespec const* time_act,
+        const struct timespec const* time_last)
 {
     volatile int cnt_busy = 0;
     long long deviation_cur = 0;
