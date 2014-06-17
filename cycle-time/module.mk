@@ -6,7 +6,7 @@ local_src              := $(addprefix $(DIR_SRC)/$(local_dir)/src/,\
     main.c)
 local_objs             := $(addprefix $(DIR_OBJ)/,$(subst .c,.o,$(local_src)))
 local_dep              := 
-local_lib_dep          := -lrt -lm
+local_lib_dep          := -lrt -lm -lpthread
 
 libraries              += $(local_lib)
 sources                += $(local_src)
