@@ -28,11 +28,17 @@ extra_clean    :=
 object_dirs_deps = $(addsuffix /.d,$(sort $(dir $(objects))))
 
 # programs
-RM := rm -rf
+RM    := rm -rf
 STRIP := $(CROSS_COMPILE)strip -s
-CC := $(CROSS_COMPILE)gcc
+CC    := $(CROSS_COMPILE)gcc
 MKDIR := mkdir
 TOUCH := touch
+TEST  := test
+
+# user defined functions
+define delete-empty-dir
+    $(TEST) -d $1 -a "$$(ls -A $1 2>/dev/null)" || $(RM) $1
+endef
 
 all:
 
@@ -59,6 +65,8 @@ ifneq ($(strip $(objects)),)
 	-$(RM) $(objects)
 endif
 	-$(RM) $(DIR_OUTPUT)/$(DIR_PLATFORM)/$(DIR_TARGET)
+	-$(call delete-empty-dir,$(DIR_OUTPUT)/$(PLATFORM))
+	-$(call delete-empty-dir,$(DIR_OUTPUT))
 
 .PHONY: distclean
 distclean: clean
@@ -77,7 +85,6 @@ ifeq ($(BUILD_TARGET),release)
 else
 	CFLAGS += -O0 -g -DDEBUG
 endif
-LDFLAGS := -pthread
 
 all: $(programs)
 
