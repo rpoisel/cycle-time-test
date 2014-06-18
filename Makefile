@@ -24,8 +24,7 @@ objects        :=
 libraries      :=
 extra_clean    :=
 
-#dependencies   = $(subst .c,.d,$(sources))
-object_dirs_deps = $(addsuffix /.d,$(sort $(dir $(objects))))
+object_dirs_deps = $(addsuffix /.stamp,$(sort $(dir $(objects))))
 
 # programs
 RM    := rm -rf
@@ -85,6 +84,7 @@ ifeq ($(BUILD_TARGET),release)
 else
 	CFLAGS += -O0 -g -DDEBUG
 endif
+CPPFLAGS += -MMD -MP
 
 all: $(programs)
 
@@ -100,8 +100,10 @@ help:
 $(DIR_OBJ)/%.o: \
     %.c \
     $(object_dirs_deps)
-	$(CC) $(CFLAGS) -c -o $@ $<
+	$(CC) $(CPPFLAGS) $(CFLAGS) -c -o $@ $<
 
-%.d:
+%.stamp:
 	$(MKDIR) -p $(dir $@)
 	$(TOUCH) $@
+
+-include $(objects:%.o=%.d)
